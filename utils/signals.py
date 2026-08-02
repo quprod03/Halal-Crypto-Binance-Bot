@@ -1,40 +1,32 @@
-def check_signal(client, symbol, config):
-    klines = client.get_klines(symbol=symbol, interval="1h", limit=100)
-    closes = [float(k[4]) for k in klines]
-    signals_cfg = config["signals"]
+import pandas as pd
+import numpy as np
 
-    # EMA crossover
-    if signals_cfg["ema"]["enabled"]:
-        ema_short = sum(closes[-signals_cfg["ema"]["short_period"]:]) / signals_cfg["ema"]["short_period"]
-        ema_long = sum(closes[-signals_cfg["ema"]["long_period"]:]) / signals_cfg["ema"]["long_period"]
-        if ema_short <= ema_long:
-            return False
+def get_candles(okx_request, symbol, interval="1h", limit=100):
+    data = okx_request("GET", "/api/v5/market/candles", {
+        "instId": symbol,
+        "bar": interval,
+        "limit": str(limit)
+    })
+    candles = data["data"]
+    # Each row: [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
+    df = pd.DataFrame(candles, columns=[
+        "ts","open","high","low","close","vol","volCcy","volCcyQuote","confirm"
+    ])
+    df = df.astype({"open":float,"high":float,"low":float,"close":float,"vol":float})
+    df = df.iloc[::-1].reset_index(drop=True)  # reverse to chronological order
+    return df
 
-    # RSI filter
-    if signals_cfg["rsi"]["enabled"]:
-        gains = [closes[i+1]-closes[i] for i in range(len(closes)-1) if closes[i+1]>closes[i]]
-        losses = [closes[i]-closes[i+1] for i in range(len(closes)-1) if closes[i+1]<closes[i]]
-        avg_gain = sum(gains[-signals_cfg["rsi"]["period"]:]) / signals_cfg["rsi"]["period"] if gains else 0
-        avg_loss = sum(losses[-signals_cfg["rsi"]["period"]:]) / signals_cfg["rsi"]["period"] if losses else 1
-        rs = avg_gain / avg_loss
-        rsi = 100 - (100 / (1 + rs))
-        if rsi > signals_cfg["rsi"]["overbought"]:
-            return False
+def check_signal(okx_request, symbol, config):
+    df = get_candles(okx_request, symbol, interval="1h", limit=100)
 
-    # MACD confirmation
-    if signals_cfg["macd"]["enabled"]:
-        ema_fast = sum(closes[-signals_cfg["macd"]["fast_period"]:]) / signals_cfg["macd"]["fast_period"]
-        ema_slow = sum(closes[-signals_cfg["macd"]["slow_period"]:]) / signals_cfg["macd"]["slow_period"]
-        macd_line = ema_fast - ema_slow
-        signal_line = sum(closes[-signals_cfg["macd"]["signal_period"]:]) / signals_cfg["macd"]["signal_period"]
-        if macd_line <= signal_line:
-            return False
+    # Example: simple EMA crossover
+    df["ema_fast"] = df["close"].ewm(span=9).mean()
+    df["ema_slow"] = df["close"].ewm(span=21).mean()
 
-    # Volume spike
-    if signals_cfg["volume"]["enabled"]:
-        volumes = [float(k[5]) for k in klines]
-        avg_vol = sum(volumes[-signals_cfg["volume"]["lookback"]:]) / signals_cfg["volume"]["lookback"]
-        if volumes[-1] < avg_vol:
-            return False
+    latest = df.iloc[-1]
+    prev = df.iloc[-2]
 
-    return True
+    # Buy signal when fast EMA crosses above slow EMA
+    if prev["ema_fast"] <= prev["ema_slow"] and latest["ema_fast"] > latest["ema_slow"]:
+        return True
+    return False
