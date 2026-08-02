@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 
 def get_candles(okx_request, symbol, interval="1h", limit=100):
     data = okx_request("GET", "/api/v5/market/candles", {
@@ -7,8 +6,10 @@ def get_candles(okx_request, symbol, interval="1h", limit=100):
         "bar": interval,
         "limit": str(limit)
     })
-    candles = data["data"]
-    # Each row: [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
+    candles = data.get("data", [])
+    if not candles:
+        return pd.DataFrame()  # return empty DataFrame safely
+
     df = pd.DataFrame(candles, columns=[
         "ts","open","high","low","close","vol","volCcy","volCcyQuote","confirm"
     ])
@@ -19,14 +20,17 @@ def get_candles(okx_request, symbol, interval="1h", limit=100):
 def check_signal(okx_request, symbol, config):
     df = get_candles(okx_request, symbol, interval="1h", limit=100)
 
-    # Example: simple EMA crossover
+    if df.empty or len(df) < 2:
+        # No data, skip signal
+        return False
+
+    # Example: EMA crossover
     df["ema_fast"] = df["close"].ewm(span=9).mean()
     df["ema_slow"] = df["close"].ewm(span=21).mean()
 
     latest = df.iloc[-1]
     prev = df.iloc[-2]
 
-    # Buy signal when fast EMA crosses above slow EMA
     if prev["ema_fast"] <= prev["ema_slow"] and latest["ema_fast"] > latest["ema_slow"]:
         return True
     return False
