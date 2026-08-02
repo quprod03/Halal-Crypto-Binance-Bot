@@ -1,5 +1,7 @@
 import os, yaml, time, pandas as pd
-from binance.client import Client
+from okx.Account import Account
+from okx.Market import Market
+import os, yaml
 from utils.signals import check_signal
 from utils.risk import dca_logic, check_take_profit, check_stop_loss
 from utils.telegram import send_alert
@@ -15,7 +17,16 @@ api_secret = os.getenv("BINANCE_SECRET", config["binance"]["api_secret"])
 telegram_token = os.getenv("TELEGRAM_TOKEN", config["telegram"]["token"])
 telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", config["telegram"]["chat_id"])
 
-client = Client(api_key, api_secret)
+with open("config.yaml") as f:
+    config = yaml.safe_load(f)
+
+api_key = os.getenv("OKX_API_KEY", config["okx"]["api_key"])
+api_secret = os.getenv("OKX_API_SECRET", config["okx"]["api_secret"])
+passphrase = os.getenv("OKX_PASSPHRASE", config["okx"]["passphrase"])
+
+# Initialize OKX clients (spot trading)
+accountAPI = Account(api_key, api_secret, passphrase, False, "0")
+marketAPI = Market(api_key, api_secret, passphrase, False, "0")
 
 capital = 1000
 mode = config.get("mode", "paper")
@@ -27,7 +38,13 @@ halal_coins = pd.read_csv("halal_universe.csv")["symbol"].tolist()
 open_trades, pnl_log = [], []
 
 def place_order(symbol, qty, side="BUY"):
-    price = float(client.get_symbol_ticker(symbol=symbol)['price'])
+    accountAPI.place_order(
+    instId="BTC-USDT",
+    tdMode="cash",
+    side="buy",
+    ordType="market",
+    sz=str(qty)
+)
     if mode == "paper":
         send_alert(f"[PAPER] {side} {symbol}, qty={qty}, price={price}")
         return {"fills":[{"price":price}]}
