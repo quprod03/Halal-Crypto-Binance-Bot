@@ -1,7 +1,6 @@
 import os, yaml, time, pandas as pd
 from okx.Account import Account
 from okx.Market import Market
-import os, yaml
 from utils.signals import check_signal
 from utils.risk import dca_logic, check_take_profit, check_stop_loss
 from utils.telegram import send_alert
@@ -12,14 +11,6 @@ with open("config.yaml") as f:
     config = yaml.safe_load(f)
 
 # Prefer environment variables (GitHub Secrets) if available
-api_key = os.getenv("BINANCE_API_KEY", config["binance"]["api_key"])
-api_secret = os.getenv("BINANCE_SECRET", config["binance"]["api_secret"])
-telegram_token = os.getenv("TELEGRAM_TOKEN", config["telegram"]["token"])
-telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", config["telegram"]["chat_id"])
-
-with open("config.yaml") as f:
-    config = yaml.safe_load(f)
-
 api_key = os.getenv("OKX_API_KEY", config["okx"]["api_key"])
 api_secret = os.getenv("OKX_API_SECRET", config["okx"]["api_secret"])
 passphrase = os.getenv("OKX_PASSPHRASE", config["okx"]["passphrase"])
@@ -32,43 +23,44 @@ capital = 1000
 mode = config.get("mode", "paper")
 track_pnl = config.get("pnl_tracking", False)
 
-# Load halal universe
+# Load halal universe (symbols must be in OKX format, e.g. BTC-USDT)
 halal_coins = pd.read_csv("halal_universe.csv")["symbol"].tolist()
 
 open_trades, pnl_log = [], []
 
-def place_order(symbol, qty, side="BUY"):
-    accountAPI.place_order(
-    instId="BTC-USDT",
-    tdMode="cash",
-    side="buy",
-    ordType="market",
-    sz=str(qty)
-)
+def get_price(symbol):
+    ticker = marketAPI.get_ticker(symbol)
+    return float(ticker['data'][0]['last'])
+
+def place_order(symbol, qty, side="buy"):
+    price = get_price(symbol)
     if mode == "paper":
-        send_alert(f"[PAPER] {side} {symbol}, qty={qty}, price={price}")
-        return {"fills":[{"price":price}]}
+        send_alert(f"[PAPER] {side.upper()} {symbol}, qty={qty}, price={price}")
+        return {"price": price}
     else:
-        if side == "BUY":
-            order = client.order_market_buy(symbol=symbol, quantity=qty)
-        else:
-            order = client.order_market_sell(symbol=symbol, quantity=qty)
-        send_alert(f"{side} {symbol}, qty={qty}")
+        order = accountAPI.place_order(
+            instId=symbol,
+            tdMode="cash",
+            side=side,
+            ordType="market",
+            sz=str(qty)
+        )
+        send_alert(f"{side.upper()} {symbol}, qty={qty}")
         return order
 
 while True:
     # Entry logic
     if len(open_trades) < config["max_open_trades"]:
         for symbol in halal_coins:
-            if check_signal(client, symbol, config):
-                current_price = float(client.get_symbol_ticker(symbol=symbol)['price'])
+            if check_signal(marketAPI, symbol, config):
+                current_price = get_price(symbol)
                 qty = config["allocation_per_trade"] / current_price
-                order = place_order(symbol, qty, "BUY")
+                order = place_order(symbol, qty, "buy")
                 trade = {
                     "symbol": symbol,
                     "qty": qty,
-                    "entry": float(order['fills'][0]['price']),
-                    "last_buy": float(order['fills'][0]['price']),
+                    "entry": order.get("price", current_price),
+                    "last_buy": order.get("price", current_price),
                     "dca_count": 0
                 }
                 open_trades.append(trade)
@@ -78,19 +70,17 @@ while True:
 
     # Manage trades
     for trade in open_trades[:]:
-        if check_take_profit(client, trade, place_order, config):
-            send_alert(f"✅ TP hit: {trade['symbol']} +1.15%")
+        if check_take_profit(marketAPI, trade, place_order, config):
+            send_alert(f"✅ TP hit: {trade['symbol']} +{config['take_profit_percent']*100:.2f}%")
             open_trades.remove(trade)
-        elif check_stop_loss(client, trade, place_order, config):
-            send_alert(f"❌ SL hit: {trade['symbol']} −6%")
+        elif check_stop_loss(marketAPI, trade, place_order, config):
+            send_alert(f"❌ SL hit: {trade['symbol']} −{config['stop_loss_percent']*100:.2f}%")
             open_trades.remove(trade)
         else:
-            dca_logic(client, trade, place_order, config)
+            dca_logic(marketAPI, trade, place_order, config)
 
         if track_pnl:
-            update_pnl(client, trade, pnl_log)
+            update_pnl(marketAPI, trade, pnl_log)
 
     if track_pnl:
-        report_pnl(pnl_log)
-
-    time.sleep(60)  # run every minute
+        report
