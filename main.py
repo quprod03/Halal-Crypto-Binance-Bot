@@ -53,3 +53,9 @@ def place_order(symbol, qty, side="buy"):
         send_alert(f"[PAPER] {side.upper()} {symbol}, qty={qty}, price={price}")
         return {"price": price}
     else:
+        order = okx_request("POST", "/api/v5/trade/order", {
+            "instId": symbol,
+            "tdMode": "cash",
+            "side": side,
+            "ordType": "market",
+            "
