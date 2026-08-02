@@ -1,0 +1,16 @@
+symbol,name,verdict,notes
+BTC,Bitcoin,Halal,Digital commodity, proof-of-work
+ETH,Ethereum,Halal,Utility token, staking halal if non-lending
+LTC,Litecoin,Halal,Payment coin, no ICO/pre-mine
+ADA,Cardano,Halal,Proof-of-stake, staking halal in non-lending pools
+MATIC,Polygon,Halal,Layer-2 utility, staking halal if compliant
+LINK,Chainlink,Halal,Oracle utility token
+XLM,Stellar,Halal,Cross-border payments
+XTZ,Tezos,Halal,Staking halal if service-fee based
+SOL,Solana,Halal,High-throughput L1
+DOT,Polkadot,Halal,Governance utility
+AVAX,Avalanche,Halal,Smart contract platform
+ARB,Arbitrum,Halal,Layer-2 scaling
+OP,Optimism,Halal,Layer-2 scaling
+XDC,XDC Network,Halal,Enterprise blockchain
+KAS,Kaspa,Halal,Proof-of-work, no haram exposure
