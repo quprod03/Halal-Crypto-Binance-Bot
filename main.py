@@ -58,4 +58,46 @@ def place_order(symbol, qty, side="buy"):
             "tdMode": "cash",
             "side": side,
             "ordType": "market",
-            "
+            "sz": str(qty)
+        })
+        send_alert(f"{side.upper()} {symbol}, qty={qty}")
+        return order
+
+while True:
+    # Entry logic
+    if len(open_trades) < config["max_open_trades"]:
+        for symbol in halal_coins:
+            if check_signal(okx_request, symbol, config):
+                current_price = get_price(symbol)
+                qty = config["allocation_per_trade"] / current_price
+                order = place_order(symbol, qty, "buy")
+                trade = {
+                    "symbol": symbol,
+                    "qty": qty,
+                    "entry": order.get("price", current_price),
+                    "last_buy": order.get("price", current_price),
+                    "dca_count": 0
+                }
+                open_trades.append(trade)
+                if track_pnl: pnl_log.append(trade)
+                if len(open_trades) >= config["max_open_trades"]:
+                    break
+
+    # Manage trades
+    for trade in open_trades[:]:
+        if check_take_profit(okx_request, trade, place_order, config):
+            send_alert(f"✅ TP hit: {trade['symbol']} +{config['take_profit_percent']*100:.2f}%")
+            open_trades.remove(trade)
+        elif check_stop_loss(okx_request, trade, place_order, config):
+            send_alert(f"❌ SL hit: {trade['symbol']} −{config['stop_loss_percent']*100:.2f}%")
+            open_trades.remove(trade)
+        else:
+            dca_logic(okx_request, trade, place_order, config)
+
+        if track_pnl:
+            update_pnl(okx_request, trade, pnl_log)
+
+    if track_pnl:
+        report_pnl(pnl_log)
+
+    time.sleep(60)  # run every minute
