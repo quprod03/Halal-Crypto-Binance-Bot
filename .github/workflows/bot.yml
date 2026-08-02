@@ -23,7 +23,7 @@ jobs:
       run: pip uninstall -y python-telegram-bot
 
     - name: Install dependencies (force exact versions)
-      run: pip install --no-cache-dir -r requirements.txt
+      run: pip install --no-cache-dir --force-reinstall -r requirements.txt
 
     - name: Verify telegram version
       run: python -c "import telegram; print('python-telegram-bot version:', telegram.__version__)"
