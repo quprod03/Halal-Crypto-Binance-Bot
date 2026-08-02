@@ -1,7 +1,6 @@
 from telegram import Bot
 import yaml
 
-# Load config for Telegram settings
 with open("config.yaml") as f:
     config = yaml.safe_load(f)
 
