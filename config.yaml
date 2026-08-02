@@ -1,0 +1,40 @@
+allocation_per_trade: 100
+max_open_trades: 5
+max_dca_per_trade: 3
+take_profit_percent: 0.0115   # 1.15% profit target
+dca_trigger_percent: 0.015    # each DCA at 1.5% lower than previous buy
+stop_loss_percent: 0.06       # stop loss at 6% of trade allocation
+mode: "paper"                 # "paper" or "live"
+pnl_tracking: true
+
+signals:
+  ema:
+    enabled: true
+    short_period: 20
+    long_period: 50
+  rsi:
+    enabled: true
+    period: 14
+    overbought: 70
+    oversold: 30
+  macd:
+    enabled: true
+    fast_period: 12
+    slow_period: 26
+    signal_period: 9
+  atr:
+    enabled: true
+    period: 14
+  volume:
+    enabled: true
+    lookback: 20
+  btc_regime_filter:
+    enabled: true
+
+telegram:
+  token: "YOUR_TELEGRAM_BOT_TOKEN"
+  chat_id: "YOUR_CHAT_ID"
+
+binance:
+  api_key: "YOUR_BINANCE_API_KEY"
+  api_secret: "YOUR_BINANCE_SECRET"
